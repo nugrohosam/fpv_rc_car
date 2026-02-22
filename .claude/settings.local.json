@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter create:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter:*)",
+      "Bash(echo Hot reload via Flutter DevTools or press 'r' in the Flutter console:*)",
+      "Bash(dart:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(pkill:*)",
+      "Bash(echo no identify:*)",
+      "Bash(magick:*)"
+    ]
+  }
+}

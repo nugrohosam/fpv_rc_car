@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV RC Car - Manual Connection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #fff;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { text-align: center; margin-bottom: 20px; }
+        .section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 { margin-bottom: 10px; color: #4ade80; }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #0a0a0a;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        button {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #6d28d9; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .video-container {
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        video { width: 100%; display: block; }
+        .step { margin: 15px 0; padding: 15px; background: rgba(74,222,128,0.1); border-radius: 4px; }
+        .step-number { font-size: 24px; font-weight: bold; color: #4ade80; }
+    </style>
+</head>
+<body>
+    <h1>🚗 FPV RC Car - Manual WebRTC Connection</h1>
+
+    <div class="section">
+        <h2>Step 1: Create Offer</h2>
+        <p>Click the button below to create a WebRTC offer, then copy it to your phone.</p>
+        <button onclick="createOffer()">1. Create Offer (Copy this to Phone)</button>
+        <textarea id="localOffer" readonly placeholder="Click 'Create Offer' first..."></textarea>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Paste Phone's Offer</h2>
+        <p>Paste the offer from your phone here:</p>
+        <textarea id="remoteOffer" placeholder="Paste offer from phone here..."></textarea>
+        <button onclick="acceptPhoneOffer()">2. Accept Phone's Offer & Create Answer</button>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: Your Answer for Phone</h2>
+        <p>After accepting the phone's offer, this will show your answer. Copy this to your phone:</p>
+        <textarea id="localAnswer" readonly placeholder="Your answer will appear here after step 2..."></textarea>
+        <button onclick="copyAnswer()">3. Copy Answer to Clipboard</button>
+    </div>
+
+    <div class="video-container">
+        <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+
+    <div class="section">
+        <h2>Instructions</h2>
+        <div class="step">
+            <span class="step-number">1</span>
+            <p><strong>On this page:</strong> Click "Create Offer" - this generates an SDP offer</p>
+        </div>
+        <div class="step">
+            <span class="step-number">2</span>
+            <p><strong>Copy the offer</strong> from the box above</p>
+        </div>
+        <div class="step">
+            <span class="step-number">3</span>
+            <p><strong>On your phone:</strong> You'll need an app that can accept WebRTC offers (coming soon!)</p>
+        </div>
+        <div class="step">
+            <span class="step-number">4</span>
+            <p><strong>Paste the answer</strong> from your phone into the "Phone's Answer" box above</p>
+        </div>
+        <div class="step">
+            <span class="step-number">5</span>
+            <p><strong>Click "Connect"</strong> - the video stream should appear!</p>
+        </div>
+    </div>
+
+    <script>
+        let peerConnection = null;
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        const config = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
+
+        async function createOffer() {
+            try {
+                peerConnection = new RTCPeerConnection(config);
+
+                peerConnection.ontrack = (event) => {
+                    console.log('Got track:', event.track.kind);
+                    if (event.streams && event.streams[0]) {
+                        remoteVideo.srcObject = event.streams[0];
+                    }
+                };
+
+                peerConnection.onicecandidate = (event) => {
+                    if (!event.candidate) {
+                        // ICE gathering complete, show the final offer
+                        const offer = peerConnection.localDescription;
+                        document.getElementById('localOffer').value = JSON.stringify({
+                            sdp: offer.sdp,
+                            type: offer.type
+                        }, null, 2);
+                        console.log('Offer ready - copy this to phone');
+                    }
+                };
+
+                const offer = await peerConnection.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: true
+                });
+
+                await peerConnection.setLocalDescription(offer);
+
+                document.getElementById('localOffer').value = 'Gathering ICE candidates... Please wait...';
+
+            } catch (error) {
+                console.error('Error creating offer:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function acceptPhoneOffer() {
+            try {
+                const offerText = document.getElementById('remoteOffer').value;
+                if (!offerText.trim()) {
+                    alert('Please paste the offer from your phone first!');
+                    return;
+                }
+
+                const offer = JSON.parse(offerText);
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+                // Create answer
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // Wait for ICE gathering
+                peerConnection.onicecandidate = (event) => {
+                    if (!event.candidate) {
+                        // ICE gathering complete
+                        const ans = peerConnection.localDescription;
+                        document.getElementById('localAnswer').value = JSON.stringify({
+                            sdp: ans.sdp,
+                            type: ans.type
+                        }, null, 2);
+                        console.log('Answer ready - copy this to phone');
+                    }
+                };
+
+                document.getElementById('localAnswer').value = 'Gathering ICE candidates... Please wait...';
+
+            } catch (error) {
+                console.error('Error accepting offer:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function connectWithAnswer() {
+            // This is now handled by acceptPhoneOffer
+            alert('Use "Accept Phone\'s Offer" button instead!');
+        }
+
+        function copyAnswer() {
+            const answerText = document.getElementById('localAnswer').value;
+            if (answerText) {
+                navigator.clipboard.writeText(answerText);
+                alert('Answer copied to clipboard!');
+            } else {
+                alert('No answer yet - create an offer first!');
+            }
+        }
+
+        // Handle incoming answer (for future use)
+        peerConnection?.oniceconnectionstatechange = () => {
+            console.log('ICE state:', peerConnection.iceConnectionState);
+        };
+    </script>
+</body>
+</html>
